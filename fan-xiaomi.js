@@ -1,5 +1,5 @@
 
-console.info("%c Xiaomi Fan Card \n%c  Version  1.3.5 ", "color: orange; font-weight: bold; background: black", "color: white; font-weight: bold; background: dimgray");
+console.info("%c Xiaomi Fan Card \n%c  Version  1.1.5 ", "color: orange; font-weight: bold; background: black", "color: white; font-weight: bold; background: dimgray");
 import 'https://unpkg.com/@material/mwc-slider@0.18.0/mwc-slider.js?module'
 const LitElement = Object.getPrototypeOf(
   customElements.get("ha-panel-lovelace")
@@ -48,6 +48,14 @@ export class FanXiaomiCard extends LitElement {
     const state = this.hass.states[this.config.entity];
     const attrs = state.attributes;
     let nowspeed = attrs['natural_speed'] || attrs['direct_speed'] || attrs['raw_speed']
+    let isSpleep = attrs['preset_mode'] == 'Sleep'
+    let isAuto = attrs['preset_mode'] == 'Auto'
+    let isManual = attrs['preset_mode'] == 'Favorite'
+    let isLock = this.hass.states['switch.zhimi_cpa4_64ab_physical_control_locked'].state == 'on'
+    let isSound = this.hass.states['switch.zhimi_cpa4_64ab_alarm'].state == 'on'
+    let manualState = this.hass.states['number.zhimi_cpa4_64ab_favorite_level']
+    let airLevel = this.hass.states['sensor.zhimi_cpa4_64ab_pm25_density'].state
+
     return html`
     <div id="aspect-ratio" 
       style="width:${100*this.config.aspect_ratio||100}%" 
@@ -68,9 +76,10 @@ export class FanXiaomiCard extends LitElement {
             </div>
             ${fans.map(i => html`<div class="fan ang${i}"></div>`)}
             ${fan1s.map(i => html`<div class="fan1 ang${i}"></div>`)}
-            <div class="c2"></div>
+            <div class="c2 ${airLevel < 12?'safe':'danger'}"></div>
             <div class="c3">
-                <ha-icon id="power" icon="${state.state=='on'||state.state.state=='on'?(attrs['natural_speed'] || attrs['mode']==='nature'?'mdi:leaf':'mdi:weather-windy'):'mdi:power'}" class="c_icon state show" role="button" tabindex="0" aria-disabled="false" .cmd="${'toggle'}" @click=${this._action}></ha-icon>
+                <ha-icon id="power" icon="${state.state=='on'||state.state.state=='on'?(isSpleep?'mdi:weather-night':isManual?'mdi:fan-speed-1':'mdi:leaf'):'mdi:power'}" 
+                  class="c_icon state show" role="button" tabindex="0" aria-disabled="false" .cmd="${'toggle'}" @click=${this._action}></ha-icon>
             </div>
             <div class="c1">
               <div class="wrapper rightc ${attrs['battery_charge']!="complete"?"battery_charge":""} ${attrs['battery']<20?"red":""}">
@@ -110,38 +119,23 @@ export class FanXiaomiCard extends LitElement {
         </div>
         
         <div id="buttons" class="${this.over?'show':'hidden'}" style="background:${this.config.background_color||'var(--card-background-color)'}">
-          <mwc-icon-button id="lock" class="c_icon ${attrs['child_lock']?"active":""}" role="button" tabindex="0" aria-disabled="false" .cmd="${'lock'}" @click=${this._action}>
-            <ha-icon icon="hass:lock"></ha-icon>
+          <mwc-icon-button id="block" class="c_icon ${isLock?"active":""}" role="button" tabindex="0" aria-disabled="false" .cmd="${'lock'}" @click=${this._action}>
+            <ha-icon icon="${isLock?"mdi:lock":"mdi:lock-open"}"></ha-icon>
           </mwc-icon-button>
-          <mwc-icon-button class="c_icon ${attrs['delay_off_countdown']?"active":""}" .cmd="${'delay'}" @click=${this._action}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-            <path d="M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22A9,9 0 0,0 21,13A9,9 0 0,0 12,4M12.5,8V8M7.88,3.39L6.6,1.86L2,5.71L3.29,7.24L7.88,3.39M22,5.72L17.4,1.86L16.11,3.39L20.71,7.25L22,5.72Z"></path>
-              <text  x="12" y="13">
-                <tspan style="stroke: ${this.config.background_color||'var(--card-background-color)'}; stroke-width: 3;">${attrs['model']==='dmaker.fan.p5'?attrs['delay_off_countdown']:Math.ceil(attrs['delay_off_countdown']/60)}</tspan>
-              </text>
-              <text  x="12" y="13">
-                <tspan>${attrs['model']==='dmaker.fan.p5'?attrs['delay_off_countdown']:Math.ceil(attrs['delay_off_countdown']/60)}</tspan>
-              </text>
-            </svg>
+          <div class="icon-badge-container c_icon" .cmd="${'manualLevel'}" @click=${this._action}>
+            <mwc-icon-button id="bmanual" class="${isManual?"active":""}" .cmd="${'favorite'}" @click=${this._action}>
+              <ha-icon icon="mdi:fan-speed-1"></ha-icon>
+            </mwc-icon-button>
+            <div class="badge">${parseInt(manualState.state)}</div>
+          </div>
+          <mwc-icon-button id="bsound" class="c_icon ${isSound?"active":""}" role="button" tabindex="0" aria-disabled="false" .cmd="${'sound'}" @click=${this._action}>
+            <ha-icon icon="${isSound?'mdi:volume-high':'mdi:volume-off'}"></ha-icon>
           </mwc-icon-button>
-
-          <mwc-icon-button class="c_icon ${attrs['oscillate']?"active":""}" .cmd="${'oscillate'}" @click=${this._action}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-              <path d="M4,6l1,-6l5,6.5z"></path>
-              <path class="oc" d="M3,7A 10 10, 0, 1, 0, 5.5 4," fill="none" style="stroke-width: 2"></path>
-              <text  x="12" y="12">
-                <tspan style="stroke: ${this.config.background_color||'var(--card-background-color)'}; stroke-width: 3;">${attrs['oscillate']?attrs['angle']==118?"120":attrs['angle']:"0"}</tspan>
-              </text>
-              <text  x="12" y="12">
-                <tspan>${attrs['oscillate']?attrs['angle']==118?"120":attrs['angle']:"0"}</tspan>
-              </text>
-            </svg>
+          <mwc-icon-button id="bauto" class="c_icon ${isAuto?"active":""}" role="button" tabindex="0" aria-disabled="false" .cmd="${'auto'}" @click=${this._action}>
+            <ha-icon icon="mdi:fan-auto"></ha-icon>
           </mwc-icon-button>
-          <mwc-icon-button id="bnatural" class="c_icon ${attrs['natural_speed']?"active":attrs['mode']==='nature'?"active":""}" role="button" tabindex="0" aria-disabled="false" .cmd="${'natural_speed'}" @click=${this._action}>
-            <ha-icon icon="mdi:leaf"></ha-icon>
-          </mwc-icon-button>
-          <mwc-icon-button id="buzzer" class="c_icon ${attrs['buzzer']?"active":""}" role="button" tabindex="0" aria-disabled="false" .cmd="${'buzzer'}" @click=${this._action}>
-            <ha-icon icon="mdi:surround-sound"></ha-icon>
+          <mwc-icon-button id="bsleep" class="c_icon ${isSpleep?"active":""}" role="button" tabindex="0" aria-disabled="false" .cmd="${'sleep'}" @click=${this._action}>
+            <ha-icon icon="mdi:weather-night"></ha-icon>
           </mwc-icon-button>
         </div>
         <mwc-slider
@@ -157,16 +151,16 @@ export class FanXiaomiCard extends LitElement {
           @change=${this._changAngle}
         ></mwc-slider>
         <mwc-slider
-          id="delayslider" 
+          id="manualSlider" 
           class="hidden" 
           pin 
-          markers 
-          max="480" 
-          value="${attrs['model']==='dmaker.fan.p5'?attrs['delay_off_countdown']:Math.ceil(attrs['delay_off_countdown']/60)}" 
-          step="60" 
+          min="${manualState.attributes['min']}"
+          max="${manualState.attributes['max']}" 
+          value="${manualState.state}" 
+          step="${manualState.attributes['step']}" 
           style="background:${this.config.background_color||'var(--card-background-color)'}" 
-          @mousedown=${this._clickSlider}
-          @change=${this._changDelay}
+          @mousedown=${this._clickSƒlƒider}
+          @change=${this._changeManualLevel}
         ></mwc-slider>
         <div class="header" style="font-size: 9px;" class="${this.over?'hidden':'show'}">   
             <div class="name">
@@ -189,13 +183,40 @@ export class FanXiaomiCard extends LitElement {
     mwc-icon-button ha-icon{padding-bottom: 8px;}
     #buttons ha-icon-button ,#buttons mwc-icon-button{--mdc-icon-button-size: 32px; }
     #buttons tspan{text-anchor: middle;font-family: Helvetica, sans-serif;alignment-baseline: central;dominant-baseline: central;font-size: 10px;}
-    #angleslider,#delayslider{position: absolute;bottom: 0;width: calc( 100% - 20px );margin: 0 10px;z-index: 25;}
+    #angleslider,#manualSlider{position: absolute;bottom: 0;width: calc( 100% - 20px );margin: 0 10px;z-index: 25;}
     #speedsvg {position: absolute;bottom: 0;width: calc( 100% - 20px );margin: 0 10px;}
 
     .c_icon {position: absolute;cursor: pointer;top: 0;right: 0;z-index: 25;}
     .c_icon.active{color:var(--paper-item-icon-active-color);fill:var(--paper-item-icon-active-color);}
     .c_icon .oc{stroke:var(--primary-text-color)}
     .c_icon.active .oc{stroke:var(--paper-item-icon-active-color);}
+
+    #bauto.active{color: #32CD32;}
+    #bsleep.active{color: #6495ED;}
+    #bmanual.active{color: #FF8C00;}
+    #block.active{color: #FF0000;}
+    #bsound.active{color: #32CD32;}
+
+    .icon-badge-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    .badge {
+      position: absolute;
+      top: 0;
+      right: 0;
+      color: white;
+      background-color: black;
+      font-size: 10px;
+      font-weight: bold;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
 
     .offline{opacity:0.5}
     .ang1 {transform: rotate(0deg)}.ang2 {transform: rotate(5deg)}.ang3 {transform: rotate(10deg)}.ang4 {transform: rotate(15deg)}.ang5 {transform: rotate(20deg)}.ang6 {transform: rotate(25deg)}.ang7 {transform: rotate(30deg)}.ang8 {transform: rotate(35deg)}.ang9 {transform: rotate(40deg)}.ang10 {transform: rotate(45deg)}.ang11 {transform: rotate(50deg)}.ang12 {transform: rotate(55deg)}.ang13 {transform: rotate(60deg)}.ang14 {transform: rotate(65deg)}.ang15 {transform: rotate(70deg)}.ang16 {transform: rotate(75deg)}.ang17 {transform: rotate(80deg)}.ang18 {transform: rotate(85deg)}.ang19 {transform: rotate(90deg)}.ang20 {transform: rotate(95deg)}.ang21 {transform: rotate(100deg)}.ang22 {transform: rotate(105deg)}.ang23 {transform: rotate(110deg)}.ang24 {transform: rotate(115deg)}.ang25 {transform: rotate(120deg)}.ang26 {transform: rotate(125deg)}.ang27 {transform: rotate(130deg)}.ang28 {transform: rotate(135deg)}.ang29 {transform: rotate(140deg)}.ang30 {transform: rotate(145deg)}.ang31 {transform: rotate(150deg)}.ang32 {transform: rotate(155deg)}.ang33 {transform: rotate(160deg)}.ang34 {transform: rotate(165deg)}.ang35 {transform: rotate(170deg)}.ang36 {transform: rotate(175deg)}.ang37 {transform: rotate(180deg)}.ang38 {transform: rotate(185deg)}.ang39 {transform: rotate(190deg)}.ang40 {transform: rotate(195deg)}.ang41 {transform: rotate(200deg)}.ang42 {transform: rotate(205deg)}.ang43 {transform: rotate(210deg)}.ang44 {transform: rotate(215deg)}.ang45 {transform: rotate(220deg)}.ang46 {transform: rotate(225deg)}.ang47 {transform: rotate(230deg)}.ang48 {transform: rotate(235deg)}.ang49 {transform: rotate(240deg)}.ang50 {transform: rotate(245deg)}.ang51 {transform: rotate(250deg)}.ang52 {transform: rotate(255deg)}.ang53 {transform: rotate(260deg)}.ang54 {transform: rotate(265deg)}.ang55 {transform: rotate(270deg)}.ang56 {transform: rotate(275deg)}.ang57 {transform: rotate(280deg)}.ang58 {transform: rotate(285deg)}.ang59 {transform: rotate(290deg)}.ang60 {transform: rotate(295deg)}.ang61 {transform: rotate(300deg)}.ang62 {transform: rotate(305deg)}.ang63 {transform: rotate(310deg)}.ang64 {transform: rotate(315deg)}.ang65 {transform: rotate(320deg)}.ang66 {transform: rotate(325deg)}.ang67 {transform: rotate(330deg)}.ang68 {transform: rotate(335deg)}.ang69 {transform: rotate(340deg)}.ang70 {transform: rotate(345deg)}.ang71 {transform: rotate(350deg)}.ang72 {transform: rotate(355deg)}
@@ -217,6 +238,8 @@ export class FanXiaomiCard extends LitElement {
     .c1{top:20%;left:20%;width:60%;height:60%;border:2px solid #fff;border-radius:50%;cursor:pointer;baskground:#ffffff00}
     .c1,.c2{position:absolute;box-sizing:border-box}
     .c2{top:-1%;left:-1%;width:102%;height:102%;border:10px solid #f7f7f7;border-radius:50%;background: #ffffff01;}
+    .c2.safe{border-color:lightgreen;}
+    .c2.danger{border-color:indianred;}
     .c3{position:absolute;top:40%;left:40%;box-sizing:border-box;width:20%;height:20%;border-radius:50%;background:#fff;color:#ddd}
     
     .c3 ha-icon{
@@ -382,19 +405,18 @@ export class FanXiaomiCard extends LitElement {
     clearTimeout(this._timer2)
     clearTimeout(this._timer3)
   }
-  _changDelay(e){
-
+  _changeManualLevel(e){
+    
     const target = e.target;
-    let attr = this.hass.states[this.config.entity].attributes
-    attr['delay_off_countdown'] = "^_^"
-    this.hass.callService('xiaomi_miio_fan', 'fan_set_delay_off', {
-      entity_id: this.config.entity,
-      delay_off_countdown: target.value
-    })
+
+    this.hass.callService("number", "set_value", {
+      entity_id: "number.zhimi_cpa4_64ab_favorite_level",
+      value: parseInt(target.value)
+    });
+    
     this._timer3 = setTimeout(() => {
       target.classList.add("hidden")
     },1500)
-    this._timer1 = setTimeout(() => {this.over=false},5000)
     
   }
   _changAngle(e){
@@ -432,17 +454,20 @@ export class FanXiaomiCard extends LitElement {
       this.hass.callService('fan', 'toggle', {
         entity_id: this.config.entity
       });
-    }else if(target.cmd == "buzzer"){
-      this.hass.callService('xiaomi_miio_fan', attr['buzzer']?"fan_set_buzzer_off":"fan_set_buzzer_on", {
-        entity_id: this.config.entity
+    }else if(target.cmd == "sleep" || target.cmd == "auto" || target.cmd == "favorite"){
+      
+      this.hass.callService('fan', 'set_preset_mode', {
+        entity_id: this.config.entity,
+        preset_mode: target.cmd.charAt(0).toUpperCase() + target.cmd.slice(1)
       });
-    }else if(target.cmd == "natural_speed" && state=="on"){
-      this.hass.callService('xiaomi_miio_fan', attr['natural_speed'] || attr['mode']==='nature'?"fan_set_natural_mode_off":"fan_set_natural_mode_on", {
-        entity_id: this.config.entity
+      
+    }else if(target.cmd == "sound"){
+      this.hass.callService("switch", "toggle", {
+        entity_id: "switch.zhimi_cpa4_64ab_alarm"
       });
     }else if(target.cmd == "lock"){
-      this.hass.callService('xiaomi_miio_fan', attr['child_lock']?"fan_set_child_lock_off":"fan_set_child_lock_on", {
-        entity_id: this.config.entity
+      this.hass.callService("switch", "toggle", {
+        entity_id: "switch.zhimi_cpa4_64ab_physical_control_locked"
       });
     }else if(target.cmd == "set_direction_left" && state=="on"){
       this.hass.callService('fan', 'set_direction', {
@@ -468,11 +493,11 @@ export class FanXiaomiCard extends LitElement {
         });
         target.classList.remove("hidden")
       }
-    }else if(target.cmd == "delay"){
+    }else if(target.cmd == "manualLevel"){
       clearTimeout(this._timer3);
-      target.parentNode.parentNode.querySelector("#delayslider").classList.remove("hidden")
+      target.parentNode.parentNode.parentNode.querySelector("#manualSlider").classList.remove("hidden")
       this._timer2 = setTimeout(() => {
-        target.parentNode.parentNode.querySelector("#delayslider").classList.add("hidden")
+        target.parentNode.parentNode.parentNode.querySelector("#manualSlider").classList.add("hidden")
       },5000)
     }else if(target.cmd == "more"){
       this.fire('hass-more-info', { entityId: this.config.entity });
